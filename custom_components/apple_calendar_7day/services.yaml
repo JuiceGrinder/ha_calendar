@@ -1,0 +1,78 @@
+# Services for Apple Calendar 7-Day View Integration
+
+refresh_calendar:
+  name: Refresh Calendar
+  description: Manually refresh calendar data from Apple Calendar servers
+  fields:
+    entity_id:
+      name: Entity ID
+      description: Calendar entity to refresh (optional, refreshes all if not specified)
+      required: false
+      selector:
+        entity:
+          domain: calendar
+
+create_event:
+  name: Create Event
+  description: Create a new event in Apple Calendar
+  fields:
+    calendar_id:
+      name: Calendar ID
+      description: ID of the calendar to create the event in
+      required: true
+      selector:
+        text:
+    title:
+      name: Title
+      description: Event title/summary
+      required: true
+      selector:
+        text:
+    start_datetime:
+      name: Start Date/Time
+      description: Event start date and time
+      required: true
+      selector:
+        datetime:
+    end_datetime:
+      name: End Date/Time
+      description: Event end date and time
+      required: true
+      selector:
+        datetime:
+    description:
+      name: Description
+      description: Event description (optional)
+      required: false
+      selector:
+        text:
+          multiline: true
+    location:
+      name: Location
+      description: Event location (optional)
+      required: false
+      selector:
+        text:
+
+get_calendar_events:
+  name: Get Calendar Events
+  description: Get events from Apple Calendar for a specific date range
+  fields:
+    calendar_id:
+      name: Calendar ID
+      description: ID of the calendar to get events from (optional, gets all if not specified)
+      required: false
+      selector:
+        text:
+    start_date:
+      name: Start Date
+      description: Start date for event search
+      required: true
+      selector:
+        date:
+    end_date:
+      name: End Date
+      description: End date for event search
+      required: true
+      selector:
+        date:

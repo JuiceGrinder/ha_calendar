@@ -1,0 +1,10 @@
+{
+  "name": "Apple Calendar 7-Day View",
+  "content_in_root": false,
+  "filename": "apple-calendar-7day-card.js",
+  "country": ["US", "CA", "GB", "AU", "NZ"],
+  "homeassistant": "2024.1.0",
+  "render_readme": true,
+  "domains": ["calendar", "sensor"],
+  "iot_class": "Cloud Polling"
+}

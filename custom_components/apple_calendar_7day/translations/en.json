@@ -1,0 +1,119 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Apple Calendar Setup",
+        "description": "Configure your Apple Calendar (iCloud) integration. You'll need an App-Specific Password from Apple ID settings.",
+        "data": {
+          "url": "CalDAV Server URL",
+          "username": "Apple ID Email",
+          "password": "App-Specific Password"
+        },
+        "data_description": {
+          "url": "Usually https://caldav.icloud.com/ for iCloud calendars",
+          "username": "Your Apple ID email address",
+          "password": "Generate this at appleid.apple.com under App-Specific Passwords"
+        }
+      }
+    },
+    "error": {
+      "auth_failed": "Authentication failed. Please check your Apple ID credentials and App-Specific Password.",
+      "connection_failed": "Cannot connect to Apple Calendar servers. Please check your internet connection and server URL.",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Apple Calendar is already configured for this account"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Apple Calendar Options",
+        "description": "Configure how your Apple Calendar integration behaves",
+        "data": {
+          "days_to_sync": "Days to sync",
+          "auto_refresh": "Auto refresh"
+        },
+        "data_description": {
+          "days_to_sync": "Number of days to sync events (1-30)",
+          "auto_refresh": "Automatically refresh calendar data every 15 minutes"
+        }
+      }
+    }
+  },
+  "entity": {
+    "calendar": {
+      "apple_calendar_all": {
+        "name": "Apple Calendar (All)"
+      }
+    },
+    "sensor": {
+      "events_today": {
+        "name": "Events Today"
+      },
+      "events_tomorrow": {
+        "name": "Events Tomorrow"
+      },
+      "events_this_week": {
+        "name": "Events This Week"
+      },
+      "next_event": {
+        "name": "Next Event"
+      }
+    }
+  },
+  "services": {
+    "refresh_calendar": {
+      "name": "Refresh Calendar",
+      "description": "Manually refresh calendar data from Apple Calendar servers"
+    },
+    "create_event": {
+      "name": "Create Event",
+      "description": "Create a new event in Apple Calendar",
+      "fields": {
+        "calendar_id": {
+          "name": "Calendar ID",
+          "description": "ID of the calendar to create the event in"
+        },
+        "title": {
+          "name": "Title",
+          "description": "Event title/summary"
+        },
+        "start_datetime": {
+          "name": "Start Date/Time",
+          "description": "Event start date and time"
+        },
+        "end_datetime": {
+          "name": "End Date/Time",
+          "description": "Event end date and time"
+        },
+        "description": {
+          "name": "Description",
+          "description": "Event description (optional)"
+        },
+        "location": {
+          "name": "Location",
+          "description": "Event location (optional)"
+        }
+      }
+    },
+    "get_calendar_events": {
+      "name": "Get Calendar Events",
+      "description": "Get events from Apple Calendar for a specific date range",
+      "fields": {
+        "calendar_id": {
+          "name": "Calendar ID",
+          "description": "ID of the calendar to get events from (optional)"
+        },
+        "start_date": {
+          "name": "Start Date",
+          "description": "Start date for event search"
+        },
+        "end_date": {
+          "name": "End Date",
+          "description": "End date for event search"
+        }
+      }
+    }
+  }
+}
