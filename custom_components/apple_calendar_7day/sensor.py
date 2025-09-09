@@ -82,7 +82,7 @@ class AppleCalendarTodaySensor(AppleCalendarBaseSensor):
         if not self.coordinator.data or "events" not in self.coordinator.data:
             return 0
 
-        today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = dt_util.start_of_local_day()
         tomorrow = today + timedelta(days=1)
         
         count = 0
@@ -90,9 +90,25 @@ class AppleCalendarTodaySensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and today <= start_time < tomorrow:
-                count += 1
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if today <= start_time < tomorrow:
+                        count += 1
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
                 
         return count
 
@@ -102,7 +118,7 @@ class AppleCalendarTodaySensor(AppleCalendarBaseSensor):
         if not self.coordinator.data or "events" not in self.coordinator.data:
             return {}
 
-        today = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = dt_util.start_of_local_day()
         tomorrow = today + timedelta(days=1)
         
         today_events = []
@@ -110,14 +126,30 @@ class AppleCalendarTodaySensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and today <= start_time < tomorrow:
-                today_events.append({
-                    "summary": event.get(ATTR_SUMMARY, ""),
-                    "start": start_time.strftime("%H:%M"),
-                    "location": event.get("location", ""),
-                    "calendar": event.get("calendar", ""),
-                })
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if today <= start_time < tomorrow:
+                        today_events.append({
+                            "summary": event.get(ATTR_SUMMARY, ""),
+                            "start": start_time.strftime("%H:%M"),
+                            "location": event.get("location", ""),
+                            "calendar": event.get("calendar", ""),
+                        })
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         return {
             "events": sorted(today_events, key=lambda x: x["start"]),
@@ -140,7 +172,7 @@ class AppleCalendarTomorrowSensor(AppleCalendarBaseSensor):
         if not self.coordinator.data or "events" not in self.coordinator.data:
             return 0
 
-        tomorrow = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        tomorrow = dt_util.start_of_local_day() + timedelta(days=1)
         day_after = tomorrow + timedelta(days=1)
         
         count = 0
@@ -148,9 +180,25 @@ class AppleCalendarTomorrowSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and tomorrow <= start_time < day_after:
-                count += 1
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if tomorrow <= start_time < day_after:
+                        count += 1
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
                 
         return count
 
@@ -160,7 +208,7 @@ class AppleCalendarTomorrowSensor(AppleCalendarBaseSensor):
         if not self.coordinator.data or "events" not in self.coordinator.data:
             return {}
 
-        tomorrow = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        tomorrow = dt_util.start_of_local_day() + timedelta(days=1)
         day_after = tomorrow + timedelta(days=1)
         
         tomorrow_events = []
@@ -168,14 +216,30 @@ class AppleCalendarTomorrowSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and tomorrow <= start_time < day_after:
-                tomorrow_events.append({
-                    "summary": event.get(ATTR_SUMMARY, ""),
-                    "start": start_time.strftime("%H:%M"),
-                    "location": event.get("location", ""),
-                    "calendar": event.get("calendar", ""),
-                })
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if tomorrow <= start_time < day_after:
+                        tomorrow_events.append({
+                            "summary": event.get(ATTR_SUMMARY, ""),
+                            "start": start_time.strftime("%H:%M"),
+                            "location": event.get("location", ""),
+                            "calendar": event.get("calendar", ""),
+                        })
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         return {
             "events": sorted(tomorrow_events, key=lambda x: x["start"]),
@@ -199,7 +263,7 @@ class AppleCalendarWeekSensor(AppleCalendarBaseSensor):
             return 0
 
         now = dt_util.now()
-        week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = dt_util.start_of_local_day()
         week_end = week_start + timedelta(days=7)
         
         count = 0
@@ -207,9 +271,25 @@ class AppleCalendarWeekSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and week_start <= start_time < week_end:
-                count += 1
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if week_start <= start_time < week_end:
+                        count += 1
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
                 
         return count
 
@@ -220,7 +300,7 @@ class AppleCalendarWeekSensor(AppleCalendarBaseSensor):
             return {}
 
         now = dt_util.now()
-        week_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        week_start = dt_util.start_of_local_day()
         week_end = week_start + timedelta(days=7)
         
         # Group events by day
@@ -234,16 +314,32 @@ class AppleCalendarWeekSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
-            if start_time and week_start <= start_time < week_end:
-                day_name = start_time.strftime("%A")
-                daily_events[day_name].append({
-                    "summary": event.get(ATTR_SUMMARY, ""),
-                    "start": start_time.strftime("%H:%M"),
-                    "date": start_time.strftime("%Y-%m-%d"),
-                    "location": event.get("location", ""),
-                    "calendar": event.get("calendar", ""),
-                })
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if week_start <= start_time < week_end:
+                        day_name = start_time.strftime("%A")
+                        daily_events[day_name].append({
+                            "summary": event.get(ATTR_SUMMARY, ""),
+                            "start": start_time.strftime("%H:%M"),
+                            "date": start_time.strftime("%Y-%m-%d"),
+                            "location": event.get("location", ""),
+                            "calendar": event.get("calendar", ""),
+                        })
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         return {
             "daily_events": daily_events,
@@ -272,6 +368,17 @@ class AppleCalendarNextEventSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
             if start_time and start_time > now:
                 return event.get(ATTR_SUMMARY, "Untitled Event")
@@ -290,6 +397,17 @@ class AppleCalendarNextEventSensor(AppleCalendarBaseSensor):
             start_time = event.get(ATTR_START)
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time:
+                # Ensure all datetime objects are timezone-aware
+                try:
+                    if hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                        start_time = dt_util.as_local(start_time)
+                    elif not hasattr(start_time, 'tzinfo'):
+                        # Handle other datetime-like objects
+                        start_time = dt_util.as_local(start_time)
+                except Exception:
+                    # If conversion fails, skip this event
+                    continue
             
             if start_time and start_time > now:
                 # Calculate time until event

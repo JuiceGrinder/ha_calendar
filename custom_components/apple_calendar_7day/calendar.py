@@ -108,9 +108,17 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
             start_time = event_data[ATTR_START]
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time and hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                # Ensure timezone awareness for naive datetime objects
+                start_time = dt_util.as_local(start_time)
             
-            if start_time and start_time > now:
-                return self._create_calendar_event(event_data)
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    if start_time > now:
+                        return self._create_calendar_event(event_data)
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         # If no future events, return the current ongoing event
         for event_data in events:
@@ -119,11 +127,21 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
             
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time and hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                start_time = dt_util.as_local(start_time)
+                
             if isinstance(end_time, str):
                 end_time = dt_util.parse_datetime(end_time)
+            elif end_time and hasattr(end_time, 'tzinfo') and end_time.tzinfo is None:
+                end_time = dt_util.as_local(end_time)
                 
-            if start_time and end_time and start_time <= now <= end_time:
-                return self._create_calendar_event(event_data)
+            if start_time and end_time and hasattr(start_time, 'tzinfo') and hasattr(end_time, 'tzinfo'):
+                try:
+                    if start_time <= now <= end_time:
+                        return self._create_calendar_event(event_data)
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         return None
 
@@ -146,15 +164,24 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
             
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time and hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                start_time = dt_util.as_local(start_time)
+                
             if isinstance(end_time, str):
                 end_time = dt_util.parse_datetime(end_time)
+            elif end_time and hasattr(end_time, 'tzinfo') and end_time.tzinfo is None:
+                end_time = dt_util.as_local(end_time)
 
             if not start_time or not end_time:
                 continue
 
             # Check if event overlaps with requested range
-            if start_time < end_date and end_time > start_date:
-                calendar_events.append(self._create_calendar_event(event_data))
+            try:
+                if start_time < end_date and end_time > start_date:
+                    calendar_events.append(self._create_calendar_event(event_data))
+            except TypeError:
+                # Skip events with incompatible datetime types
+                continue
 
         return sorted(calendar_events, key=lambda x: x.start)
 
@@ -180,8 +207,13 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
         
         if isinstance(start_time, str):
             start_time = dt_util.parse_datetime(start_time)
+        elif start_time and hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+            start_time = dt_util.as_local(start_time)
+            
         if isinstance(end_time, str):
             end_time = dt_util.parse_datetime(end_time)
+        elif end_time and hasattr(end_time, 'tzinfo') and end_time.tzinfo is None:
+            end_time = dt_util.as_local(end_time)
 
         return CalendarEvent(
             start=start_time,
@@ -201,9 +233,10 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
         events = self._get_filtered_events()
         
         # Count events by day for the next 7 days
-        now = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        now = dt_util.start_of_local_day()
         daily_counts = {}
         weekly_events = []
+        week_end = now + timedelta(days=7)
         
         for i in range(7):
             day = now + timedelta(days=i)
@@ -214,22 +247,28 @@ class AppleCalendarEntity(CoordinatorEntity, CalendarEntity):
             start_time = event_data[ATTR_START]
             if isinstance(start_time, str):
                 start_time = dt_util.parse_datetime(start_time)
+            elif start_time and hasattr(start_time, 'tzinfo') and start_time.tzinfo is None:
+                start_time = dt_util.as_local(start_time)
                 
-            if start_time:
-                day_key = start_time.strftime("%Y-%m-%d")
-                if day_key in daily_counts:
-                    daily_counts[day_key] += 1
-                    
-                # Add to weekly events list
-                if start_time >= now and start_time < now + timedelta(days=7):
-                    weekly_events.append({
-                        "summary": event_data.get(ATTR_SUMMARY, ""),
-                        "start": start_time.isoformat(),
-                        "end": event_data.get(ATTR_END, ""),
-                        "location": event_data.get(ATTR_LOCATION, ""),
-                        "calendar": event_data.get(ATTR_CALENDAR, ""),
-                        "all_day": event_data.get(ATTR_ALL_DAY, False),
-                    })
+            if start_time and hasattr(start_time, 'tzinfo'):
+                try:
+                    day_key = start_time.strftime("%Y-%m-%d")
+                    if day_key in daily_counts:
+                        daily_counts[day_key] += 1
+                        
+                    # Add to weekly events list
+                    if start_time >= now and start_time < week_end:
+                        weekly_events.append({
+                            "summary": event_data.get(ATTR_SUMMARY, ""),
+                            "start": start_time.isoformat(),
+                            "end": event_data.get(ATTR_END, ""),
+                            "location": event_data.get(ATTR_LOCATION, ""),
+                            "calendar": event_data.get(ATTR_CALENDAR, ""),
+                            "all_day": event_data.get(ATTR_ALL_DAY, False),
+                        })
+                except TypeError:
+                    # Skip events with incompatible datetime types
+                    continue
 
         return {
             "events": weekly_events,

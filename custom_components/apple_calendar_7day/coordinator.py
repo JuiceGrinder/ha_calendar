@@ -56,14 +56,32 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
         self._events_cache: dict[str, list[dict[str, Any]]] = {}
 
     async def _async_setup(self) -> None:
-        """Set up the CalDAV client."""
-        try:
-            await self.hass.async_add_executor_job(self._setup_client)
-        except Exception as err:
-            _LOGGER.exception("Error setting up CalDAV client: %s", err)
-            if "401" in str(err) or "authentication" in str(err).lower():
-                raise ConfigEntryAuthFailed(ERROR_AUTH_FAILED) from err
-            raise UpdateFailed(ERROR_CONNECTION_FAILED) from err
+        """Set up the CalDAV client with retry logic."""
+        max_retries = 3
+        retry_delay = 5
+        
+        for attempt in range(max_retries):
+            try:
+                await self.hass.async_add_executor_job(self._setup_client)
+                _LOGGER.info("CalDAV client setup successful on attempt %d", attempt + 1)
+                return
+            except Exception as err:
+                _LOGGER.warning("CalDAV client setup attempt %d failed: %s", attempt + 1, err)
+                
+                # Check for authentication errors (don't retry these)
+                if "401" in str(err) or "authentication" in str(err).lower():
+                    _LOGGER.error("Authentication failed - not retrying")
+                    raise ConfigEntryAuthFailed(ERROR_AUTH_FAILED) from err
+                
+                # If this is the last attempt, raise the error
+                if attempt == max_retries - 1:
+                    _LOGGER.error("CalDAV client setup failed after %d attempts", max_retries)
+                    raise UpdateFailed(ERROR_CONNECTION_FAILED) from err
+                
+                # Wait before retrying
+                if attempt < max_retries - 1:
+                    _LOGGER.info("Retrying CalDAV setup in %d seconds...", retry_delay)
+                    await asyncio.sleep(retry_delay)
 
     def _setup_client(self) -> None:
         """Set up CalDAV client (runs in executor)."""
@@ -102,19 +120,33 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
         if self.client is None:
             await self._async_setup()
 
-        return await self.hass.async_add_executor_job(self._fetch_events)
+        try:
+            return await self.hass.async_add_executor_job(self._fetch_events)
+        except Exception as err:
+            _LOGGER.error("Failed to retrieve events from calendars: %s", err)
+            if self.data:
+                # Return cached data if available
+                _LOGGER.info("Returning cached calendar data due to fetch failure")
+                return self.data
+            # Return empty structure if no cached data
+            return {"events": [], "calendars": {}, "last_updated": dt_util.now().isoformat()}
 
     def _fetch_events(self) -> dict[str, Any]:
         """Fetch events from all calendars."""
         if not self.calendars:
+            _LOGGER.warning("No calendars available for fetching events")
             return {"events": [], "calendars": {}}
 
         days_to_sync = self.entry.options.get(CONF_DAYS_TO_SYNC, DEFAULT_DAYS_TO_SYNC)
         start_date = dt_util.now().replace(hour=0, minute=0, second=0, microsecond=0)
         end_date = start_date + timedelta(days=days_to_sync)
 
+        _LOGGER.debug("Fetching events from %d calendars for date range %s to %s", 
+                     len(self.calendars), start_date, end_date)
+
         all_events = []
         calendar_info = {}
+        failed_calendars = []
 
         for calendar_id, calendar in self.calendars.items():
             try:
@@ -124,7 +156,9 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
                     "id": calendar_id,
                 }
 
-                # Fetch events for this calendar
+                _LOGGER.debug("Fetching events from calendar: %s (%s)", calendar_name, calendar_id)
+
+                # Fetch events for this calendar with timeout
                 events = calendar.search(
                     start=start_date,
                     end=end_date,
@@ -132,24 +166,40 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
                     expand=True,
                 )
 
+                event_count = 0
                 for event in events:
                     try:
                         parsed_event = self._parse_event(event, calendar_id, calendar_name)
                         if parsed_event:
                             all_events.append(parsed_event)
+                            event_count += 1
                     except Exception as err:
-                        _LOGGER.warning("Error parsing event: %s", err)
+                        _LOGGER.warning("Error parsing event from calendar %s: %s", calendar_name, err)
+
+                _LOGGER.debug("Successfully fetched %d events from calendar %s", event_count, calendar_name)
 
             except Exception as err:
-                _LOGGER.warning("Error fetching events from calendar %s: %s", calendar_id, err)
+                _LOGGER.error("Failed to fetch events from calendar %s (%s): %s", 
+                             calendar_info.get(calendar_id, {}).get("name", calendar_id), 
+                             calendar_id, err)
+                failed_calendars.append(calendar_id)
 
         # Sort events by start time
         all_events.sort(key=lambda x: x[ATTR_START])
+
+        # Log summary
+        if failed_calendars:
+            _LOGGER.warning("Failed to fetch events from %d calendars: %s", 
+                           len(failed_calendars), failed_calendars)
+        
+        _LOGGER.info("Successfully retrieved %d events from %d calendars (%d failed)", 
+                    len(all_events), len(calendar_info) - len(failed_calendars), len(failed_calendars))
 
         return {
             "events": all_events,
             "calendars": calendar_info,
             "last_updated": dt_util.now().isoformat(),
+            "failed_calendars": failed_calendars,
         }
 
     def _get_calendar_name(self, calendar: Calendar) -> str:
@@ -185,7 +235,16 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
             end_dt = self._parse_datetime(dtend.dt) if dtend else start_dt
             
             # Check if it's an all-day event
-            all_day = isinstance(dtstart.dt, datetime) and not hasattr(dtstart.dt, 'hour')
+            all_day = False
+            try:
+                if hasattr(dtstart, 'dt'):
+                    # All-day events are typically stored as date objects, not datetime
+                    from datetime import date
+                    all_day = isinstance(dtstart.dt, date) and not isinstance(dtstart.dt, datetime)
+                else:
+                    all_day = False
+            except Exception:
+                all_day = False
             
             # Get attendees
             attendees = []
@@ -229,17 +288,37 @@ class AppleCalendarCoordinator(DataUpdateCoordinator):
 
     def _parse_datetime(self, dt_value: Any) -> datetime:
         """Parse datetime value from iCalendar."""
-        if isinstance(dt_value, datetime):
-            # If it's already a datetime, ensure it's timezone-aware
-            if dt_value.tzinfo is None:
-                return dt_util.as_local(dt_value)
-            return dt_value
-        elif hasattr(dt_value, 'date'):
-            # Date object, convert to datetime at start of day
-            return dt_util.as_local(datetime.combine(dt_value.date(), datetime.min.time()))
-        else:
-            # Try to parse as string
-            return dt_util.parse_datetime(str(dt_value)) or dt_util.now()
+        if dt_value is None:
+            return dt_util.now()
+            
+        try:
+            if isinstance(dt_value, datetime):
+                # If it's already a datetime, ensure it's timezone-aware
+                if dt_value.tzinfo is None:
+                    return dt_util.as_local(dt_value)
+                return dt_value
+            elif hasattr(dt_value, 'date') and callable(dt_value.date):
+                # Date object, convert to datetime at start of day
+                return dt_util.as_local(datetime.combine(dt_value.date(), datetime.min.time()))
+            elif hasattr(dt_value, 'date') and not callable(dt_value.date):
+                # Date property, use directly
+                return dt_util.as_local(datetime.combine(dt_value.date, datetime.min.time()))
+            else:
+                # Try to parse as string
+                parsed_dt = dt_util.parse_datetime(str(dt_value))
+                if parsed_dt:
+                    return parsed_dt
+                # Fallback: try to parse as date only
+                from datetime import date
+                try:
+                    date_only = date.fromisoformat(str(dt_value).split('T')[0])
+                    return dt_util.as_local(datetime.combine(date_only, datetime.min.time()))
+                except (ValueError, AttributeError):
+                    _LOGGER.warning("Unable to parse datetime value: %s (%s)", dt_value, type(dt_value))
+                    return dt_util.now()
+        except Exception as err:
+            _LOGGER.warning("Error parsing datetime %s: %s", dt_value, err)
+            return dt_util.now()
 
     async def async_create_event(
         self,
